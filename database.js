@@ -7,12 +7,14 @@ const sequelize = new Sequelize("wechat_bot", "root", null, {
 
 const userProfileModel = sequelize.define("UserProfileFor99", {
   alias: {
-    type: DataTypes.STRING(1000),
+    type: DataTypes.STRING(500),
     unique: true,
     allowNull: false,
     primaryKey: true,
   },
-  name: DataTypes.STRING,
+  name: {
+    type: DataTypes.STRING(500),
+  },
   gender: DataTypes.TINYINT,
   frequencyType: DataTypes.TINYINT,
   reason: DataTypes.STRING,
