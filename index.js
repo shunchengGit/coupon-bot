@@ -1,14 +1,13 @@
 import { WechatyBuilder, ScanStatus, log } from "wechaty";
 import { FileBox } from "file-box";
 import qrTerminal from "qrcode-terminal";
-
 import {
   syncDatabase,
   databaseUserList,
   databaseUserFrequencyType,
   updateDatabaseUserProfile,
   databaseLastMarketingTime,
-  updateDatabaseMarketingInfo,
+  updateDatabaseMarketingTime,
 } from "./database.js";
 
 async function updateDatabaseAllUserProfile() {
@@ -21,20 +20,48 @@ async function updateDatabaseAllUserProfile() {
   }
 }
 
-async function sendPromotionalMessage(messageList) {
+async function sendPromotionalMessage(data) {
   const userList = await databaseUserList();
   for (const user of userList) {
-    const alias = user?.dataValues?.alias;
-    const contact = await bot.Contact.find({ alias });
-    if (!contact) {
-      return;
+    try {
+      const alias = user?.dataValues?.alias;
+      const contact = await bot.Contact.find({ alias });
+      if (!contact) {
+        return;
+      }
+
+      console.log("======sendPromotionalMessage", alias);
+
+      var canSendMessages = await checkIfCanSendMessage(
+        alias,
+        data?.timeInterval
+      );
+
+      console.log("==是否能发送消息", canSendMessages);
+
+      if (!canSendMessages) {
+        return;
+      }
+
+      const { messageList } = data;
+      for (const message of messageList) {
+        await mockSendMessage(contact, message);
+      }
+      await updateDatabaseMarketingTime(alias, new Date().getTime());
+    } catch (error) {
+      console.error(error);
     }
+  }
 
-    console.log("======sendPromotionalMessage", alias);
-
+  async function checkIfCanSendMessage(alias, timeInterval) {
     const lastTime = await databaseLastMarketingTime(alias);
     const timestamp = new Date().getTime();
     const timeDiff = timestamp - lastTime;
+    // 有传入的间隔
+    if (timeInterval && timeDiff > timeInterval) {
+      return true;
+    }
+
     const frequencyType = await databaseUserFrequencyType(alias);
     const oneMonthMilSec = 30 * 24 * 60 * 60 * 1000;
     console.log("==时间信息", frequencyType, timeDiff, timestamp, lastTime);
@@ -66,22 +93,42 @@ async function sendPromotionalMessage(messageList) {
         break;
       }
     }
-
-    console.log("==是否能发送消息", canSendMessages);
-
-    if (canSendMessages) {
-      for (const message of messageList) {
-        // await contact.say(message)
-        await mockSendMessage(contact, message);
-      }
-      await updateDatabaseMarketingInfo(alias, timestamp);
-    }
+    return canSendMessages;
   }
 }
 
 async function mockSendMessage(contact, message) {
   console.log("mockSendMessage user", contact?.payload?.alias);
   console.log("mockSendMessage message", message);
+}
+
+async function sendMessage(contact, message) {
+  const { type, content } = message;
+  if (type === "pic") {
+    const fileBox = FileBox.fromUrl(content);
+    await contact.say(fileBox);
+  } else if (type === "text") {
+    await contact.say(content);
+  }
+}
+
+async function exeCmd(msg, text) {
+  if (msg?.age() > 10) {
+    return;
+  }
+
+  const cmdObject = JSON.parse(text);
+  const { cmd, data } = cmdObject;
+
+  if (cmd === "更新用户信息") {
+    msg.say(`开始执行 ${cmd}`);
+    await updateDatabaseAllUserProfile();
+    msg.say(`结束执行 ${cmd}`);
+  } else if (cmd === "开始推送") {
+    msg.say(`开始执行 ${cmd}`);
+    await sendPromotionalMessage(data);
+    msg.say(`结束执行 ${cmd}`);
+  }
 }
 
 // 扫码
@@ -105,13 +152,7 @@ function onLogin(user) {
   const date = new Date();
   console.log(`Current time:${date}`);
   console.log(`Automatic robot chat mode has been activated`);
-  setTimeout(async () => {
-    await syncDatabase();
-    console.log("==============updateDatabaseAllUserProfile");
-    await updateDatabaseAllUserProfile();
-    console.log("==============sendPromotionalMessage");
-    await sendPromotionalMessage("");
-  }, 1000 * 30);
+  syncDatabase();
 }
 
 // 登出
@@ -129,18 +170,15 @@ async function onFriendShip(friendship) {
   }
 }
 
-/**
- * 消息发送
- * @param msg
- * @param isSharding
- * @returns {Promise<void>}
- */
 async function onMessage(msg) {
-  // 默认消息回复
-  // await defaultMessage(msg, bot)
-  // 消息分片
-  // await shardingMessage(msg,bot)
-  // console.log(msg)
+  if (msg?.talker()?.name() === "燕十三" && msg?.to()?.name() === "宿于松下") {
+    console.log("onMessage", msg?.text(), msg?.age());
+    try {
+      await exeCmd(msg, msg?.text());
+    } catch (e) {
+      console.error("exeCmd", e);
+    }
+  }
 }
 
 // 初始化机器人
@@ -167,65 +205,6 @@ bot.on("logout", onLogout);
 bot.on("message", onMessage);
 // 添加好友
 bot.on("friendship", onFriendShip);
-
-// async function find99Users() {
-//   try {
-//     const regex = new RegExp('^99', 'ig')
-//     const theContact = await bot.Contact.findAll({ alias: regex })
-//     // console.log(theContact)
-//     let maleCount = 0
-//     let femaleCount = 0
-//     theContact.forEach((contact) => {
-//       if (contact?.payload?.gender == '2') {
-//         femaleCount = femaleCount + 1
-//       } else if (contact?.payload?.gender == '1') {
-//         maleCount = maleCount + 1
-//       }
-//       console.log(`${contact?.payload?.gender}, ${contact?.payload?.alias}`)
-//     })
-//     console.log(`${theContact.length} ${maleCount} ${femaleCount}`)
-//   } catch (err) {
-//     console.error(err)
-//   }
-// }
-
-// async function main() {
-//   // const contact = await bot.Contact.find({ name: '燕十三' })
-//   const regex = new RegExp('^99')
-//   const contactList = await bot.Contact.findAll({ alias: regex })
-//   console.log('contactList长度', contactList.length)
-
-//   for (const contact of contactList) {
-//     await updateDatabaseUserProfile(contact)
-//   }
-// }
-
-// async function action(contact) {
-//   try {
-//     if (!contact) {
-//       console.log('not found')
-//       return
-//     }
-//     console.log(`${contact?.payload?.gender}, ${contact?.payload?.alias}, ${contact?.payload?.name}`)
-//     // const pictureMessage = FileBox.fromUrl('https://s1.ax1x.com/2023/03/08/ppmGQOA.jpg')
-//     // await contact.say(pictureMessage)
-//     // await contact.say('帮忙填一下九十九顶优惠券的问卷哈~ 填完后可以领取微信红包[抱拳]。如果之前填过请忽略~')
-//   } catch (err) {
-//     console.error(err)
-//   }
-// }
-
-// async function logInfo(contact) {
-//   try {
-//     if (!contact) {
-//       console.log('not found')
-//       return
-//     }
-//     console.log(`${contact?.payload?.gender}, ${contact?.payload?.alias}, ${contact?.payload?.name}`)
-//   } catch (err) {
-//     console.error(err)
-//   }
-// }
 
 console.log("启动微信机器人");
 bot

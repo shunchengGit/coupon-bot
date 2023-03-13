@@ -1,4 +1,4 @@
-import { Sequelize, DataTypes, where } from "sequelize";
+import { Sequelize, DataTypes } from "sequelize";
 
 const sequelize = new Sequelize("wechat_bot", "root", null, {
   host: "127.0.0.1",
@@ -7,7 +7,7 @@ const sequelize = new Sequelize("wechat_bot", "root", null, {
 
 const userProfileModel = sequelize.define("UserProfileFor99", {
   alias: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(1000),
     unique: true,
     allowNull: false,
     primaryKey: true,
@@ -69,11 +69,12 @@ async function updateDatabaseUserProfile(contact) {
       console.log("not found");
       return;
     }
-    console.log(`updateDatabaseUserProfile`, contact?.playload?.alias);
+    const alias = await contact.alias();
+    console.log(`updateDatabaseUserProfile`, alias);
 
     await userProfileModel
       .upsert({
-        alias: contact?.payload?.alias,
+        alias: alias,
         name: contact?.payload?.name,
         gender: contact?.payload?.gender,
       })
@@ -108,13 +109,13 @@ async function databaseLastMarketingTime(alias) {
   }
 }
 
-async function updateDatabaseMarketingInfo(alias, time) {
+async function updateDatabaseMarketingTime(alias, time) {
   try {
     if (!alias || !time) {
       console.log("no alias or no time");
       return;
     }
-    console.log(`updateDatabaseMarketingInfo`, alias, time);
+    console.log(`updateDatabaseMarketingTime`, alias, time);
 
     await marketingInfoModel
       .upsert({
@@ -135,5 +136,5 @@ export {
   databaseUserFrequencyType,
   updateDatabaseUserProfile,
   databaseLastMarketingTime,
-  updateDatabaseMarketingInfo,
+  updateDatabaseMarketingTime,
 };
