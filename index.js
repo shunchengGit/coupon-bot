@@ -112,11 +112,12 @@ async function sendMessage(contact, message) {
   }
 }
 
-async function exeCmd(msg, text) {
-  if (msg?.age() > 10) {
+async function exeCmd(msg) {
+  if (msg?.age() > 30) {
     return;
   }
 
+  const text = msg?.text();
   const cmdObject = JSON.parse(text);
   const { cmd, data } = cmdObject;
 
@@ -174,7 +175,7 @@ async function onMessage(msg) {
   if (msg?.talker()?.name() === "燕十三" && msg?.to()?.name() === "宿于松下") {
     console.log("onMessage", msg?.text(), msg?.age());
     try {
-      await exeCmd(msg, msg?.text());
+      await exeCmd(msg);
     } catch (e) {
       console.error("exeCmd", e);
     }
