@@ -1,0 +1,16 @@
+{
+  "cmd": "开始推送",
+  "data": {
+    "messageList": [
+      {
+        "type": "text",
+        "content": "有一张2500的餐饮空白电子发票 免费赠送 有需要请回复"
+      },
+      {
+        "type": "pic",
+        "content": "https://wechaty.github.io/wechaty/images/bot-qr-code.png"
+      }
+    ],
+    "timeInterval": 8000
+  }
+}

@@ -10,6 +10,11 @@ import {
   updateDatabaseMarketingTime,
 } from "./database.js";
 
+const config = {
+  // env: "test",
+  env: "prod",
+};
+
 async function updateDatabaseAllUserProfile() {
   const regex = new RegExp("^99");
   const contactList = await bot.Contact.findAll({ alias: regex });
@@ -24,36 +29,46 @@ async function sendPromotionalMessage(data) {
   const userList = await databaseUserList();
   for (const user of userList) {
     try {
-      const alias = user?.dataValues?.alias;
-      const contact = await bot.Contact.find({ alias });
-      if (!contact) {
-        return;
-      }
+      await new Promise((resolve, reject) => {
+        setTimeout(async () => {
+          const alias = user?.dataValues?.alias;
+          const contact = await bot.Contact.find({ alias });
+          if (!contact) {
+            reject();
+            return;
+          }
 
-      console.log("======sendPromotionalMessage", alias);
+          console.log("======sendPromotionalMessage", alias);
 
-      var canSendMessages = await checkIfCanSendMessage(
-        alias,
-        data?.timeInterval
-      );
+          var canSendMessages = await checkIfCanSendMessage(
+            alias,
+            data?.timeInterval
+          );
 
-      console.log("==是否能发送消息", canSendMessages);
+          console.log("==是否能发送消息", canSendMessages);
 
-      if (!canSendMessages) {
-        return;
-      }
+          if (!canSendMessages) {
+            reject();
+            return;
+          }
 
-      const { messageList } = data;
-      for (const message of messageList) {
-        await mockSendMessage(contact, message);
-      }
-      await updateDatabaseMarketingTime(alias, new Date().getTime());
+          const { messageList } = data;
+          for (const message of messageList) {
+            await sendMessage(contact, message);
+          }
+          await updateDatabaseMarketingTime(alias, new Date().getTime());
+          resolve();
+        }, 3000);
+      });
     } catch (error) {
       console.error(error);
     }
   }
 
   async function checkIfCanSendMessage(alias, timeInterval) {
+    if (config.env == "test") {
+      return true;
+    }
     const lastTime = await databaseLastMarketingTime(alias);
     const timestamp = new Date().getTime();
     const timeDiff = timestamp - lastTime;
@@ -103,6 +118,11 @@ async function mockSendMessage(contact, message) {
 }
 
 async function sendMessage(contact, message) {
+  if (config.env == "test") {
+    await mockSendMessage(contact, message);
+    return;
+  }
+
   const { type, content } = message;
   if (type === "pic") {
     const fileBox = FileBox.fromUrl(content);
@@ -113,7 +133,7 @@ async function sendMessage(contact, message) {
 }
 
 async function exeCmd(msg) {
-  if (msg?.age() > 30) {
+  if (msg?.age() > 60) {
     return;
   }
 
@@ -172,7 +192,7 @@ async function onFriendShip(friendship) {
 }
 
 async function onMessage(msg) {
-  if (msg?.talker()?.name() === "燕十三" && msg?.to()?.name() === "宿于松下") {
+  if (msg?.talker()?.name() === "燕十三") {
     console.log("onMessage", msg?.text(), msg?.age());
     try {
       await exeCmd(msg);
@@ -208,9 +228,11 @@ bot.on("message", onMessage);
 bot.on("friendship", onFriendShip);
 
 console.log("启动微信机器人");
+
 bot
   .start()
   .then(() => {
+    // bot.logout();
     console.log("Start to log in wechat...");
   })
   .catch((e) => console.error(e));
